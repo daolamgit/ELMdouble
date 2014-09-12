@@ -31,7 +31,7 @@ NoClass = C;
 
 //neural network type
 strcpy( nnType, type); 
-
+bRegularize 	= false; 	
 COEFREG 	= 0;//1e-3; //fraction of 1;
 checkCudaErrors (cudaMalloc( (void**)&dSCALE, sizeof( double) )); //for scale
 checkCudaErrors (cudaMalloc( (void**)&dCOEFREG, sizeof( double) )); //for regular
@@ -546,30 +546,33 @@ void CElm::run_train(){
 	//check error
 	DBGF(check_device_memory(d_square, NoHidden, NoHidden,"ckc.HTH"));
 
-	//scale down due to large element of HTH
-	////////////////////////////////////////////
-	checkCudaErrors( cudaMemcpy( dSCALE, d_square, sizeof( double), cudaMemcpyDeviceToDevice)); //cpy to kernel
-	int Wid = NoHidden;
-	int Hei = NoHidden;
-	dim3 Block(BLOCKSIZE,BLOCKSIZE);
-	//dim3 Block(1, ThreadsperBlock); //to maximize the number of block
-	dim3 Grid( (BLOCKSIZE-1+ Wid)/Block.x, (BLOCKSIZE-1+ Hei)/Block.y);
-	kernelScaleDown<<<Grid,Block>>>(d_square, Wid, Hei, dSCALE);
-	check_cuda_errors(__FILE__, __LINE__);	
-	//////////////////////////////////////////////	
-	//end of scale
+	
+	if (bRegularize)///SINCE i USE DOUBLE, DON'T NEED TO SCALE DOWN
+		{
+		//scale down due to large element of HTH
+		////////////////////////////////////////////
+		checkCudaErrors( cudaMemcpy( dSCALE, d_square, sizeof( double), cudaMemcpyDeviceToDevice)); //cpy to kernel
+		int Wid = NoHidden;
+		int Hei = NoHidden;
+		dim3 Block(BLOCKSIZE,BLOCKSIZE);
+		//dim3 Block(1, ThreadsperBlock); //to maximize the number of block
+		dim3 Grid( (BLOCKSIZE-1+ Wid)/Block.x, (BLOCKSIZE-1+ Hei)/Block.y);
+		kernelScaleDown<<<Grid,Block>>>(d_square, Wid, Hei, dSCALE);
+		check_cuda_errors(__FILE__, __LINE__);	
+		//////////////////////////////////////////////	
+		//end of scale
 
 
-	//regularlization
-	////////////////////////
-	dim3 block 	= ThreadsperBlock;
-	dim3 grid 	= NoHidden/ThreadsperBlock+ 1;
-	
-	kernelRegularize <<<grid, block >>>( d_square, NoHidden, dCOEFREG );//coefReg just a legacy, no need
-	check_cuda_errors(__FILE__, __LINE__);
-	DBGF(check_device_memory(d_square, NoHidden, NoHidden,"ckc.HTHScale+C"));
-	//end of regularlization
-	
+		//regularlization
+		////////////////////////
+		dim3 block 	= ThreadsperBlock;
+		dim3 grid 	= NoHidden/ThreadsperBlock+ 1;
+		
+		kernelRegularize <<<grid, block >>>( d_square, NoHidden, dCOEFREG );//coefReg just a legacy, no need
+		check_cuda_errors(__FILE__, __LINE__);
+		DBGF(check_device_memory(d_square, NoHidden, NoHidden,"ckc.HTHScale+C"));
+		//end of regularlization
+		}
 	
 	//inverse
 	double *d_square_inv;
@@ -586,15 +589,22 @@ void CElm::run_train(){
 		exit(-1);
 	}
 
-	////scale up again after inversion
-	kernelScaleDown<<<Grid,Block>>>(d_square_inv, Wid, Hei, dSCALE); //still scale DOWN, tricky
-	check_cuda_errors(__FILE__, __LINE__);	
-	/////////////////////////////////////////////////////
+	if (bRegularize)
+		{
+		int Wid = NoHidden;
+		int Hei = NoHidden;
+		dim3 Block(BLOCKSIZE,BLOCKSIZE);
+		//dim3 Block(1, ThreadsperBlock); //to maximize the number of block
+		dim3 Grid( (BLOCKSIZE-1+ Wid)/Block.x, (BLOCKSIZE-1+ Hei)/Block.y);
+		////scale up again after inversion
+		kernelScaleDown<<<Grid,Block>>>(d_square_inv, Wid, Hei, dSCALE); //still scale DOWN, tricky
+		check_cuda_errors(__FILE__, __LINE__);	
+		/////////////////////////////////////////////////////
+		}
 
 	//free square
 	DBGF(check_device_memory(d_square_inv, NoHidden, NoHidden,"ckc.HH1"));
 	cudaFree(d_square);
-
 
 	//malloc d_pinv
 	double *d_pinvH;

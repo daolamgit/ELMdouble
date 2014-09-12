@@ -22,6 +22,8 @@ public:
 	int 			ThreadsperSM;
 	int 			BlocksperGrid;
 	
+	//for scale in case of single precision
+	bool 			bRegularize; //Regularize or Not
 	double 			COEFREG; //regularize coeff
 	double 			SCALE;
 	double 			*dSCALE;
