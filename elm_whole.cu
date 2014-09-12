@@ -160,9 +160,9 @@ void CElm::load(const char * filename, double *label, double * feature, const in
 			}
 
 		//add the feature 1
-		if (strcmp( nnType, "sig")==0) //summation NN type
+		if (strstr( nnType, "sig")!=NULL) //summation NN type
 			*(feature+ (i+1) *(NoFeature +1) -1) 	= 1.0;
-		else if 	(strcmp( nnType, "multiquadricrbf")==0 || strcmp( nnType, "gaussianrbf")==0) //rbf NN type
+		else if 	(strstr( nnType, "rbf")!=NULL ) //rbf NN type
 			*(feature+ (i+1) *(NoFeature +1) -1) 	= 0.0;
 			else
 				{
@@ -945,26 +945,21 @@ void CElm::compute_H(double* d_tempH, const double* Feature,int NoSample){
 	//sept 4th: wrong order DBGF(check_device_memory(d_Feature, NoFeature+1 ,NoSample, "ckc.Feature"));
 
 	//hiddenOutput( d_tempH, d_InputWeight, 
-	//
-	if ( strcmp( nnType, "sig")==0) //sums sig activation
+	//////////////activation type
+	//char *strCmp;
+	if ( strstr( nnType, "sig")!=NULL) //sums sig activation
 		sumSig( d_tempH, d_Feature, d_InputWeight, NoSample);
 		
-	else if ( strcmp( nnType, "multiquadricrbf")==0)// rbf kernel	
-		multiQuadricRbf( d_tempH, d_Feature, d_InputWeight, NoSample);
-		else if  (strcmp( nnType, "gaussianrbf")==0)
-			gaussianRbf( d_tempH, d_Feature, d_InputWeight, NoSample);
-			else 
-				{
-				printf(" << Wrong kernel \n");
-				exit(-1);
-				}
-	
+	else if ( strstr( nnType, "rbf")!=NULL)// rbf kernel	
+		rbfNN( d_tempH, d_Feature, d_InputWeight, NoSample);
+		
 	//release cuda memory immediately
 	cudaFree(d_InputWeight);
 	cudaFree(d_Feature);	
 	
 }
 
+/*
 void CElm::gaussianRbf(double * d_tempH, const double *d_Feature, const double* d_InputWeight, int NoSample)
 {
 int BlockY 	= (BLOCKSIZE- 1 + NoSample)/ BLOCKSIZE;	
@@ -979,24 +974,49 @@ check_cuda_errors( __FILE__, __LINE__);
 printf("H = exp( d_Feature - d_InputWeight) \n");
 
 }
+*/
 
-void CElm::multiQuadricRbf(double * d_tempH, const double *d_Feature, const double* d_InputWeight, int NoSample)
+void CElm::rbfNN(double * d_tempH, const double *d_Feature, const double* d_InputWeight, int NoSample)
 {
+
 int BlockY 	= (BLOCKSIZE- 1 + NoSample)/ BLOCKSIZE;	
 int BlockX 	= (BLOCKSIZE- 1 + NoHidden)/ BLOCKSIZE;
 
 dim3 grids( BlockX, BlockY);
 dim3 blocks( BLOCKSIZE, BLOCKSIZE);
 
-kernelQuadricRBF <<<grids, blocks>>> (d_tempH, d_Feature, d_InputWeight,
-								NoFeature+ 1, NoSample, NoHidden); //NoFeature+1: include vector b in INputWeight
-check_cuda_errors( __FILE__, __LINE__);
 printf("H = d_Feature - d_InputWeight \n");
+if (strcmp( nnType, "multiquadricrbf")==0)
+	{
+	kernelQuadricRBF <<<grids, blocks>>> (d_tempH, d_Feature, d_InputWeight,
+								NoFeature+ 1, NoSample, NoHidden); //NoFeature+1: include vector b in INputWeight
+	check_cuda_errors( __FILE__, __LINE__);	
+	return;						
+	}
+	
+if (strcmp(nnType, "inversemultiquadricrbf")==0)
+	{
+	kernelInverseQuadricRBF <<<grids, blocks>>> (d_tempH, d_Feature, d_InputWeight,
+								NoFeature+ 1, NoSample, NoHidden); //NoFeature+1: include vector b in INputWeight
+	check_cuda_errors( __FILE__, __LINE__);	
+	return;						
+	}							
+if (strcmp(nnType, "gaussianrbf")==0)
+	{
+	kernelGaussianRBF <<<grids, blocks>>> (d_tempH, d_Feature, d_InputWeight,
+								NoFeature+ 1, NoSample, NoHidden); //NoFeature+1: include vector b in INputWeight
+	check_cuda_errors( __FILE__, __LINE__);		
+	return;																					
+	}							
 
+//wrong rbf kernel
+printf(" << Wrong RBF kernel \n");
+exit(-1);
 }
 
 void CElm::sumSig( double* d_tempH, double* d_Feature,  double* d_InputWeight,   int NoSample)
 {
+
 	MatrixMultCublasCol( d_tempH, handle, d_InputWeight, d_Feature, 
 						NoHidden, NoFeature +1,
 						NoFeature +1, NoSample,

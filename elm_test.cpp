@@ -46,7 +46,7 @@ if (dev==-1) {
 int 		Iter = 1;
 FILE* 		fid;
 
-int NoHidden = 4096;
+int NoHidden = 80;
 do
 	{
 	for (int i=1;i<=1;i++)

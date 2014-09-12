@@ -482,7 +482,7 @@ if (r < nA && c < nB)
 
 //---------------------------------------------------------------------------------------
 
-__global__ void kernelQuadricRBF( double * C, const double *A, const double *B,
+__global__ void kernelInverseQuadricRBF( double * C, const double *A, const double *B,
 							const int ld, const int nA, const int nB)
 {
 int ty	= threadIdx.y;
@@ -522,6 +522,45 @@ if (r < nA && c < nB)
 	C[IDX2R( r, c, nB )] 	= 1/sqrt( p);	//can optimize in the futre								
 }
 
+__global__ void kernelQuadricRBF( double * C, const double *A, const double *B,
+							const int ld, const int nA, const int nB)
+{
+int ty	= threadIdx.y;
+int tx 	= threadIdx.x;
+
+int r 	= blockIdx.y* BLOCKSIZE+ threadIdx.y;
+int c 	= blockIdx.x* BLOCKSIZE+ threadIdx.x;
+double 	p = 0;
+
+//int NB 	= ld/ BLOCKSIZE;
+
+__shared__ double Sr[BLOCKSIZE][BLOCKSIZE]; //fix ty, move tx
+__shared__ double Sc[BLOCKSIZE][BLOCKSIZE]; //fix tx, move ty
+
+for (int b=0; b< (BLOCKSIZE+ ld -1)/BLOCKSIZE; b++)//each block of matrix data
+	{
+	if (b*BLOCKSIZE+ tx <ld && r < nA)
+		Sr[ty][tx]	= A[ IDX2R( r, b*BLOCKSIZE+ tx, ld) ];
+	else
+		Sr[ty][tx] 	= 0;
+		
+	if (b*BLOCKSIZE+ ty< ld && c < nB)		
+		Sc[tx][ty] 	= B[ IDX2R( c, b*BLOCKSIZE+ ty, ld)];
+	else 
+		Sc[tx][ty] 	= 0;	
+		
+		__syncthreads();		
+		
+	for (int k=0; k< BLOCKSIZE; k++) //each element in the block
+			//p 	+= Sr[tx][k]* Sc[ty][k];
+			p 	+= (Sr[ty][k] - Sc[tx][k])* (Sr[ty][k] - Sc[tx][k]) ;//bvector[ b*BLOCKSIZE+ k]*bvector[ b*BLOCKSIZE+ k];
+			
+		__syncthreads();
+		
+	}
+if (r < nA && c < nB)		
+	C[IDX2R( r, c, nB )] 	= sqrt( p);	//can optimize in the futre								
+}
 
 __global__ void vectorAddMatrix(double *C, double *A, double *B, int W, int H)
 {

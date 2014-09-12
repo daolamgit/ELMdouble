@@ -79,8 +79,11 @@ __global__ void activate_fun(const char* fun, double * H, int N);
 __global__ void activate_fun_matrix(const char* fun, double * A, int W, int H);
 __global__ void kernelRegularize( double * A, int N, double *C);
 
+__global__ void kernelInverseQuadricRBF( double * C, const double *A, const double *B,
+							const int ld, const int nA, const int nB);
 __global__ void kernelQuadricRBF( double * C, const double *A, const double *B,
 							const int ld, const int nA, const int nB);
+							
 __global__ void kernelGaussianRBF( double * C, const double *A, const double *B,
 							const int ld, const int nA, const int nB);							
 

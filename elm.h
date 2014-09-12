@@ -95,8 +95,8 @@ public:
 	//compute the H matrix for using pinvers in training
 	void 		compute_H(double*, const double * Feature, int NoSample); //used in testing
 	void 		sumSig( double* ,  double* Feature,  double* Input, int );
-	void 		multiQuadricRbf( double*, const double* Feature, const double* Input, int);
-	void 		gaussianRbf( double*, const double* Feature, const double* Input, int);
+	void 		rbfNN( double*, const double* Feature, const double* Input, int);
+	//void 		gaussianRbf( double*, const double* Feature, const double* Input, int);
 	
 	//this double * is a device memory 
 
