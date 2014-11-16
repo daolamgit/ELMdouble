@@ -1,0 +1,33 @@
+_OBJS = elm_test.o elm_whole_multiGPU.o GPUadjustRow_kernel.o GPUeliminateBlock_kernel.o GPUeliminateCol_kernel.o GPUeliminateRest_kernel.o GPUGausSeidel.o GPUnormalizeDiag_kernel.o GPUsetIdentity_kernel.o matrix.o
+CC = nvcc -arch compute_20
+DEGBUG = -g
+CFLAGS = -O5 -c -o $(DEBUG)
+LFLAGS = -lcublas $(DEBUG)
+IDIR   = .
+IFLAGS = -I$(IDIR)
+
+ODIR   = obj
+
+_DEPS  = matrix.h GPUGausSeidel.h gpu_inverse.h
+DEPS   = $(patsubst %, $(IDIR)/%,$(_DEPS))
+
+OBJS   = $(patsubst %, $(ODIR)/%,$(_OBJS))
+  
+PRAGMA = -D BLOCKSIZE=16 -D BLOCKSIZEMINUS1=15 -D AVOIDBANKCONFLICTS=0 -D BLOCK_SIZE=1
+# -D USELOOPUNROLLING=0
+#BLOCKSIZE: for invert and kernel launch add and activate 
+#BLOCK_SIZE: for MATRIX MULTIPLICATION SPEED UP
+
+$(ODIR)/%.o: %.cu $(DEPS)
+	$(CC) $(PRAGMA) $(CFLAGS) $@ $<
+
+$(ODIR)/%.o: %.cpp $(DEPS)
+	$(CC) $(CFLAGS) $@ $<
+	
+inverseMultiGPU: $(OBJS)
+	$(CC) $(PRAGMA) $(LFLAGS) -o $@ $^	
+
+.PHONY: clean
+
+clean:
+	\rm -f $(ODIR)/*.o *~ cor
