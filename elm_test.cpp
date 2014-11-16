@@ -46,7 +46,7 @@ if (dev==-1) {
 int 		Iter = 1;
 FILE* 		fid;
 
-int NoHidden = 80;
+int NoHidden = 1024;
 do
 	{
 	for (int i=1;i<=1;i++)
@@ -95,6 +95,9 @@ do
 
 		fprintf(fid,"%4.2f \t %4.2f \t %4.2f \t %4.2f \n", T_A/Iter, TY_A/Iter, T_time/Iter/1000, TY_time/Iter/1000);
 		fclose( fid);
+
+		//return, for nvpp check
+		//return 1;
 		}
 		
 	printf( "No Train :\n");

@@ -13,7 +13,6 @@
 #include 	"GPUGausSeidel.h"
 #include 	"gpu_inverse.h"
 
-#include 	"gputimer.h"
 //cuda related function
 
 //global variables
@@ -41,6 +40,13 @@ checkCudaErrors (cudaMemcpy( dCOEFREG, &COEFREG, sizeof( double), cudaMemcpyHost
 int 		nDevices;
 
 cudaGetDeviceCount( &nDevices) ;
+
+if (nDevices <3)
+	{
+		printf( "need at least 3 gpus \n");
+		exit(-1);
+	}
+		
 for (int i=0; i< nDevices; i++){
 	cudaDeviceProp prop;
 	if (cudaGetDeviceProperties(&prop, i)!= cudaSuccess){
@@ -55,6 +61,8 @@ ThreadsperBlock = prop.maxThreadsPerBlock;
 ThreadsperSM 	= prop.maxThreadsPerMultiProcessor;
 	printf("Max thread per block :%d \n", ThreadsperBlock);
 	printf("Max thread per MP: %d \n", ThreadsperSM);
+	
+	
 }
 
 size_t 		size_mem;
@@ -959,15 +967,12 @@ void CElm::compute_H(double* d_tempH, const double* Feature,int NoSample){
 	//hiddenOutput( d_tempH, d_InputWeight, 
 	//////////////activation type
 	//char *strCmp;
-	GpuTimer timer;
-	timer.Start();
 	if ( strstr( nnType, "sig")!=NULL) //sums sig activation
 		sumSig( d_tempH, d_Feature, d_InputWeight, NoSample);
 		
 	else if ( strstr( nnType, "rbf")!=NULL)// rbf kernel	
 		rbfNN( d_tempH, d_Feature, d_InputWeight, NoSample);
-	timer.Stop();
-	printf( "Hidden matrix computing time %f\n", timer.Elapsed());	
+		
 	//release cuda memory immediately
 	cudaFree(d_InputWeight);
 	cudaFree(d_Feature);	
