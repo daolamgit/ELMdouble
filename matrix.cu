@@ -562,6 +562,8 @@ if (r < nA && c < nB)
 	C[IDX2R( r, c, nB )] 	= sqrt( p);	//can optimize in the futre								
 }
 
+
+
 __global__ void vectorAddMatrix(double *C, double *A, double *B, int W, int H)
 {
 	int col = threadIdx.x + blockDim.x * blockIdx.x;
@@ -590,8 +592,11 @@ __global__ void vectorAdd(double *C, const double *A, const double * B, int N){
         C[i] = A[i] + B[i];
     }
 }
+
+
 //-----------------------------------------------------------------------------------
 void check_device_memory(const double *d_p, int r, int c, const char *filename){
+	//Dummy function
 	size_t SizeMem;
 
 	FILE * fp;
@@ -630,6 +635,43 @@ void check_device_memory(const double *d_p, int r, int c, const char *filename){
 	fclose(fp);
 
 }
+
+void check_device_memoryCorrect(const double *d_p, int r, int c, const char *filename){
+	size_t SizeMem;
+
+	FILE * fp;
+
+	fp = fopen(filename, "w");
+
+	if (fp==NULL){
+		printf("Cant open file %s to write \n",filename);
+		exit(-1);
+	}
+
+	SizeMem = r*c* sizeof(double);
+	double *h_p = (double *)malloc(SizeMem);
+	
+	//cublasGetVector(Size,sizeof(double),d_p,1,h_p,1); //spacing storage is useless
+	checkCudaErrors(cudaMemcpy(h_p, d_p, SizeMem,cudaMemcpyDeviceToHost));
+	//c = 1;
+
+	for (int i=0;i<r;i++){
+
+			for (int j=0;j<c;j++)
+
+			fprintf(fp,"%2.4f ",h_p[IDX2R0(i,j,r)]);
+
+			fprintf(fp,"\n");
+
+		}
+
+	free(h_p);
+
+	fclose(fp);
+
+}
+
+
 //-------------------------------------------------------
 void check_device_memory(const int *d_p, int r, int c){
 	//c = 1;
@@ -646,6 +688,8 @@ void check_device_memory(const int *d_p, int r, int c){
 		}
 	free(h_p);
 }
+
+
 //-----------------------------------------------------------------
 void check_device_memory(const double *d_p, int r, int c){
 
@@ -741,3 +785,138 @@ __global__ void transposeDiagonal(double *odata, const double *idata, int width,
   }
 }
 
+/////new kernel exceed 1
+__global__ void kernelQuadricRBFFast( double * C, const double *A, const double *B,
+							const int ld, const int nA, const int nB)
+			//Col of A rbf row of B (ie. col of weight x row of Input)
+			//A is organized as nA cols of ld-vector or ld x nA
+			//B is organized as nB rows of ld-vector nB x ld
+{
+const int 	lda 	= nA;
+const int 	ldb 	= ld+1;
+const int 	ldc 	= nA;
+const int 	k 		= ld;
+const int 	inx 	= threadIdx.x;
+const int 	iny 	= threadIdx.y;
+const int 	ibx 	= blockIdx.x * (BLOCKX*BLOCKY);
+const int 	iby 	= blockIdx.y * BLOCKX;
+const int 	id 		= inx+ iny* BLOCKX;	
+
+A		+= ibx+ id;
+B 		+= inx+ __mul24( iby+ iny, ldb);
+C 		+= ibx+ id+ __mul24( iby, ldc);
+
+const double *Blast = B+ k; //end of the row
+__shared__ double bs[BLOCKX][BLOCKX];
+double 				c[BLOCKX] = {0};
+//float 				c[BLOCKX]	= {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+	//								0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+
+do									
+	{
+#pragma unroll
+	for (int i=0; i< BLOCKX; i+=BLOCKY) //copy to shared mem
+		bs[inx][iny+ i] 	= B[i* ldb]; //col B to row bs
+	__syncthreads();		
+	
+#pragma unroll //mult row by row
+	for (int i=0; i< BLOCKX; i++, A += lda)
+		samb2( A[0], &bs[i][0], c);
+	
+	B	+= BLOCKX; 	
+	__syncthreads();
+		
+	}
+while (B< Blast); 
+
+for (int i=0; i< BLOCKX; 	i++, C +=ldc)
+	C[0] 	= sqrt( c[i]);// IGNORE BVECTOR +bvector[ ibx+ id]* bvector[ibx+ id];// we don;t even need bias + bvector[ ibx+ id]*bvector[ ibx+ id];
+}
+
+
+
+//////////////////////new kernel with fast rBf is here
+__global__ void kernelQuadricRBFFastlack1( double * C, const double *A, const double *B,
+							const int ld, const int nA, const int nB)
+			//Col of A rbf row of B (ie. col of weight x row of Input)
+			//A is organized as nA cols of ld-vector or ld x nA
+			//B is organized as nB rows of ld-vector nB x ld
+{
+const int 	lda 	= nA;
+const int 	ldb 	= ld;
+const int 	ldc 	= nA;
+const int 	k 		= ld;
+const int 	inx 	= threadIdx.x;
+const int 	iny 	= threadIdx.y;
+const int 	ibx 	= blockIdx.x * (BLOCKX*BLOCKY);
+const int 	iby 	= blockIdx.y * BLOCKX;
+const int 	id 		= inx+ iny* BLOCKX;	
+
+A		+= ibx+ id;
+B 		+= inx+ __mul24( iby+ iny, ldb);
+C 		+= ibx+ id+ __mul24( iby, ldc);
+
+const double *Blast = B+ k; //end of the row
+__shared__ double bs[BLOCKX][BLOCKX];
+double 				c[BLOCKX] = {0};
+//float 				c[BLOCKX]	= {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+	//								0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+
+do									
+	{
+#pragma unroll
+	for (int i=0; i< BLOCKX; i+=BLOCKY) //copy to shared mem
+		bs[inx][iny+ i] 	= B[i* ldb]; //col B to row bs
+	__syncthreads();		
+	
+#pragma unroll //mult row by row
+	for (int i=0; i< BLOCKX; i++, A += lda)
+		samb2( A[0], &bs[i][0], c);
+	
+	B	+= BLOCKX; 	
+	__syncthreads();
+		
+	}
+while (B< Blast); 
+
+for (int i=0; i< BLOCKX; 	i++, C +=ldc)
+	C[0] 	= sqrt( c[i]);// IGNORE BVECTOR +bvector[ ibx+ id]* bvector[ibx+ id];// we don;t even need bias + bvector[ ibx+ id]*bvector[ ibx+ id];
+}
+
+__device__ void samb2( double a, double *b, double *c)
+//single (a-b)(a-b)
+{
+	c[0] 	+= (a- b[0])*(a- b[0]);
+	c[1] 	+= (a- b[1])*(a- b[1]);
+	c[2] 	+= (a- b[2])*(a- b[2]);
+	c[3] 	+= (a- b[3])*(a- b[3]);
+	c[4] 	+= (a- b[4])*(a- b[4]);
+	c[5] 	+= (a- b[5])*(a- b[5]);
+	c[6] 	+= (a- b[6])*(a- b[6]);
+	c[7] 	+= (a- b[7])*(a- b[7]);
+	c[8] 	+= (a- b[8])*(a- b[8]);
+	c[9] 	+= (a- b[9])*(a- b[9]);
+	c[10] 	+= (a- b[10])*(a- b[10]);
+	c[11] 	+= (a- b[11])*(a- b[11]);
+	c[12] 	+= (a- b[12])*(a- b[12]);
+	c[13] 	+= (a- b[13])*(a- b[13]);
+	c[14] 	+= (a- b[14])*(a- b[14]);
+	c[15] 	+= (a- b[15])*(a- b[15]);
+	
+	c[16] 	+= (a- b[16])*(a- b[16]);
+	c[17] 	+= (a- b[17])*(a- b[17]);
+	c[18] 	+= (a- b[18])*(a- b[18]);
+	c[19] 	+= (a- b[19])*(a- b[19]);
+	c[20] 	+= (a- b[20])*(a- b[20]);
+	c[21] 	+= (a- b[21])*(a- b[21]);
+	c[22] 	+= (a- b[22])*(a- b[22]);
+	c[23] 	+= (a- b[23])*(a- b[23]);
+	c[24] 	+= (a- b[24])*(a- b[24]);
+	c[25] 	+= (a- b[25])*(a- b[25]);
+	c[26] 	+= (a- b[26])*(a- b[26]);
+	c[27] 	+= (a- b[27])*(a- b[27]);
+	c[28] 	+= (a- b[28])*(a- b[28]);
+	c[29] 	+= (a- b[29])*(a- b[29]);
+	c[30] 	+= (a- b[30])*(a- b[30]);
+	c[31] 	+= (a- b[31])*(a- b[31]);
+}

@@ -498,7 +498,8 @@ void CElm::run_train(){
 	//convert from vector label to matrix label
 	size_t size_mem;
 	size_t avail, total;
-
+	GpuTimer timer;
+	
 	//////////For computing time//////////////////////
 
 	cudaEvent_t start,stop;
@@ -541,8 +542,11 @@ void CElm::run_train(){
 	MH.Width = NoHidden; MH.Height = NoTrain; MH.Elements = d_H;
 
 	//MInputWeight.Width = NoHidden; MInputWeight.Height = NoFeature; MInputWeight.Elements = d_InputWeight;
+	timer.Start();
 	CublasMult(MSquare, handle, MH, MH,1,0); 
-
+	timer.Stop();
+	printf("HTH computing time: %f\n ", timer.Elapsed());
+	
 	check_cuda_errors(__FILE__, __LINE__);
 	//setup executions params
 	//check error
@@ -585,12 +589,15 @@ void CElm::run_train(){
 	//malloc invser matrix
 	checkCudaErrors (cudaMalloc((void**)&d_square_inv,size_mem));
 	printf("Inverting HTH \n");
+	timer.Start();
 	if (device_GPUGausSeidel(d_square, d_square_inv, NoHidden)){
 		check_cuda_errors(__FILE__, __LINE__);
 		printf("Error inverse AA' \n");
 		exit(-1);
 	}
-
+	timer.Stop();
+	printf( "Inverting time : %f \n", timer.Elapsed());
+	
 	if (bRegularize)
 		{
 		int Wid = NoHidden;
@@ -623,7 +630,10 @@ void CElm::run_train(){
 	MSquareInv.Height 	= NoHidden; MSquareInv.Width = NoHidden; MSquareInv.Elements = d_square_inv;
 	MPinvH.Width 		= NoTrain; MPinvH.Height = NoHidden; MPinvH.Elements = d_pinvH;
 
+	timer.Start();
 	CublasMult(MPinvH, handle, MSquareInv, MH, 0, 1);
+	timer.Stop();
+	printf( "get pinv in %f \n", timer.Elapsed());
 	check_cuda_errors(__FILE__, __LINE__);
 	//check
 	DBGF( check_device_memory(d_pinvH, NoTrain, NoHidden, "ckc.pinvH"));
@@ -675,6 +685,7 @@ void CElm::run_train(){
 	cudaEventSynchronize(stop);
 	float fTrT;
 	cudaEventElapsedTime(&fTrT,start,stop);
+	printf( "Total training time %f \n", fTrT);
 	TrT 		= (double)fTrT;
 	cudaEventDestroy(start);
 	cudaEventDestroy(stop) ;
@@ -994,23 +1005,28 @@ printf("H = exp( d_Feature - d_InputWeight) \n");
 void CElm::rbfNN(double * d_tempH, const double *d_Feature, const double* d_InputWeight, int NoSample)
 {
 
-int BlockY 	= (BLOCKSIZE- 1 + NoSample)/ BLOCKSIZE;	
-int BlockX 	= (BLOCKSIZE- 1 + NoHidden)/ BLOCKSIZE;
-
-dim3 grids( BlockX, BlockY);
-dim3 blocks( BLOCKSIZE, BLOCKSIZE);
 
 printf("H = d_Feature - d_InputWeight \n");
 if (strcmp( nnType, "multiquadricrbf")==0)
 	{
-	kernelQuadricRBF <<<grids, blocks>>> (d_tempH, d_Feature, d_InputWeight,
-								NoFeature+ 1, NoSample, NoHidden); //NoFeature+1: include vector b in INputWeight
+	dim3 thread( BLOCKX, BLOCKY) ;
+	dim3 grid( NoHidden/( BLOCKX*BLOCKY), NoSample/BLOCKX); //attention to the order of mult	
+	
+	kernelQuadricRBFFast <<<grid, thread>>> (d_tempH, d_InputWeight, d_Feature ,
+								NoFeature, NoHidden, NoSample); 
 	check_cuda_errors( __FILE__, __LINE__);	
 	return;						
 	}
 	
+/////////////////old slow kernel/////////////////////	
+	int BlockY 	= (BLOCKSIZE- 1 + NoSample)/ BLOCKSIZE;	
+	int BlockX 	= (BLOCKSIZE- 1 + NoHidden)/ BLOCKSIZE;
+
+	dim3 grids( BlockX, BlockY);
+	dim3 blocks( BLOCKSIZE, BLOCKSIZE);	
 if (strcmp(nnType, "inversemultiquadricrbf")==0)
 	{
+		//still old kernel
 	kernelInverseQuadricRBF <<<grids, blocks>>> (d_tempH, d_Feature, d_InputWeight,
 								NoFeature+ 1, NoSample, NoHidden); //NoFeature+1: include vector b in INputWeight
 	check_cuda_errors( __FILE__, __LINE__);	
