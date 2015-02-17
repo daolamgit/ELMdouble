@@ -109,16 +109,16 @@ void MatrixMultCublas(double *pC, cublasHandle_t handle,  double *pA,  double *p
 	//A remdedy for Matrix arrangement nuisance before Cublas Mult
 	Matrix MC, MA, MB;
 
-	MA.Width = WA;
-	MA.Height = HA;
+	MA.Width 	= WA;
+	MA.Height 	= HA;
 	MA.Elements = pA;
 
-	MB.Width = WB;
-	MB.Height = HB;
+	MB.Width 	= WB;
+	MB.Height 	= HB;
 	MB.Elements = pB;
 
-	MC.Width =WC;
-	MC.Height =HC;
+	MC.Width 	=WC;
+	MC.Height 	=HC;
 	MC.Elements = pC;
 
 	CublasMult(MC, handle, MA, MB, T1, T2);
@@ -821,7 +821,7 @@ do
 	
 #pragma unroll //mult row by row
 	for (int i=0; i< BLOCKX; i++, A += lda)
-		samb2( A[0], &bs[i][0], c);
+		samb2_16( A[0], &bs[i][0], c);
 	
 	B	+= BLOCKX; 	
 	__syncthreads();
@@ -919,4 +919,47 @@ __device__ void samb2( double a, double *b, double *c)
 	c[29] 	+= (a- b[29])*(a- b[29]);
 	c[30] 	+= (a- b[30])*(a- b[30]);
 	c[31] 	+= (a- b[31])*(a- b[31]);
+}
+
+__device__ void samb2_16( double a, double *b, double *c)
+//single (a-b)(a-b)
+{
+	c[0] 	+= (a- b[0])*(a- b[0]);
+	c[1] 	+= (a- b[1])*(a- b[1]);
+	c[2] 	+= (a- b[2])*(a- b[2]);
+	c[3] 	+= (a- b[3])*(a- b[3]);
+	c[4] 	+= (a- b[4])*(a- b[4]);
+	c[5] 	+= (a- b[5])*(a- b[5]);
+	c[6] 	+= (a- b[6])*(a- b[6]);
+	c[7] 	+= (a- b[7])*(a- b[7]);
+	c[8] 	+= (a- b[8])*(a- b[8]);
+	c[9] 	+= (a- b[9])*(a- b[9]);
+	c[10] 	+= (a- b[10])*(a- b[10]);
+	c[11] 	+= (a- b[11])*(a- b[11]);
+	c[12] 	+= (a- b[12])*(a- b[12]);
+	c[13] 	+= (a- b[13])*(a- b[13]);
+	c[14] 	+= (a- b[14])*(a- b[14]);
+	c[15] 	+= (a- b[15])*(a- b[15]);
+}
+
+__device__ void samb2_8( double a, double *b, double *c)
+//single (a-b)(a-b)
+{
+	c[0] 	+= (a- b[0])*(a- b[0]);
+	c[1] 	+= (a- b[1])*(a- b[1]);
+	c[2] 	+= (a- b[2])*(a- b[2]);
+	c[3] 	+= (a- b[3])*(a- b[3]);
+	c[4] 	+= (a- b[4])*(a- b[4]);
+	c[5] 	+= (a- b[5])*(a- b[5]);
+	c[6] 	+= (a- b[6])*(a- b[6]);
+	c[7] 	+= (a- b[7])*(a- b[7]);
+}
+
+__device__ void samb2_4( double a, double *b, double *c)
+//single (a-b)(a-b)
+{
+	c[0] 	+= (a- b[0])*(a- b[0]);
+	c[1] 	+= (a- b[1])*(a- b[1]);
+	c[2] 	+= (a- b[2])*(a- b[2]);
+	c[3] 	+= (a- b[3])*(a- b[3]);
 }

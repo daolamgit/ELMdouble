@@ -18,8 +18,8 @@
 #define BLOCK_ROWS  BLOCKSIZE
 #define BLOCK_DIM BLOCKSIZE
 
-#define BLOCKX 32
-#define BLOCKY 8
+#define BLOCKX 16
+#define BLOCKY 16
 
 typedef struct{ 
 	int Width;
@@ -91,6 +91,9 @@ __global__ void kernelQuadricRBF( double * C, const double *A, const double *B,
 __global__ void kernelQuadricRBFFast( double * C, const double *A, const double *B,
 							const int ld, const int nA, const int nB);
 __device__ void samb2( double a, double *b, double *c);
+__device__ void samb2_16( double a, double *b, double *c);
+__device__ void samb2_8( double a, double *b, double *c);
+__device__ void samb2_4( double a, double *b, double *c);
 							
 __global__ void kernelGaussianRBF( double * C, const double *A, const double *B,
 							const int ld, const int nA, const int nB);							
