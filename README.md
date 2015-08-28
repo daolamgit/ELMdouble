@@ -1,4 +1,4 @@
 ELMdouble
 =========
 
-double precision
+GPU Implementation of RBF ELM in C/C++
